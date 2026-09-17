@@ -1,0 +1,32 @@
+{
+    "name": "metolabs/banxico-cep",
+    "description": "A small framework-agnostic PHP client for downloading Banco de Mexico CEP receipts.",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.2",
+        "ext-json": "*",
+        "guzzlehttp/guzzle": "^7.9"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "MetoLabs\\Banxico\\Cep\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "MetoLabs\\Banxico\\Cep\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

@@ -1,0 +1,7 @@
+/examples/
+/vendor/
+/.phpunit.cache/
+/.idea/
+/.junie/
+.DS_Store
+composer.lock

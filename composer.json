@@ -1,11 +1,13 @@
 {
     "name": "metolabs/banxico-cep",
-    "description": "A small framework-agnostic PHP client for downloading Banco de Mexico CEP receipts.",
+    "description": "A small framework-agnostic PHP client for querying SPEI payment details and downloading Banco de Mexico CEP receipts.",
     "type": "library",
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "ext-dom": "*",
         "ext-json": "*",
+        "ext-mbstring": "*",
         "guzzlehttp/guzzle": "^7.9"
     },
     "require-dev": {

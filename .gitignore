@@ -5,3 +5,10 @@
 /.junie/
 .DS_Store
 composer.lock
+
+# Private input files and live payment responses
+/private/
+*.csv
+*.tsv
+/cep-*.html
+/cep-*.json

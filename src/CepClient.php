@@ -54,6 +54,66 @@ final class CepClient
     }
 
     /**
+     * Query SPEI payment details without downloading a CEP document.
+     * The result is payment status information, not proof of accreditation.
+     *
+     * @return list<PaymentDetails> A reference can match more than one payment.
+     * @throws CepException
+     */
+    public function consult(PaymentQuery $query): array
+    {
+        $cookies = new CookieJar();
+        $this->initializeSession($cookies);
+        $html = $this->validatePayment($query, $cookies, consultation: true);
+
+        try {
+            return PaymentDetails::fromHtml($html);
+        } catch (\UnexpectedValueException $e) {
+            throw $this->exception(ErrorCode::InvalidResponse, $e);
+        }
+    }
+
+    /** Resolve the full SPEI institution code using the catalogue for the payment date. */
+    public function receiverBankFromClabe(string $clabe, \DateTimeInterface $paymentDate): string
+    {
+        if (!preg_match('/^[0-9]{18}$/D', $clabe)) {
+            throw new \InvalidArgumentException('CLABE must contain exactly 18 digits.');
+        }
+
+        try {
+            $response = $this->http->request('GET', 'instituciones.do', [
+                'timeout' => $this->timeout,
+                'query' => ['fecha' => $paymentDate->format('d-m-Y')],
+            ]);
+        } catch (GuzzleException $e) {
+            throw $this->exception(ErrorCode::HttpRequestFailed, $e);
+        }
+
+        $body = (string) $response->getBody();
+        $this->assertNoRateLimit($this->decode($body));
+        $catalogue = json_decode($body, true);
+        if (!is_array($catalogue) || !isset($catalogue['instituciones']) || !is_array($catalogue['instituciones'])) {
+            throw $this->exception(ErrorCode::InvalidResponse);
+        }
+
+        $matches = [];
+        foreach ($catalogue['instituciones'] as $institution) {
+            if (!is_array($institution) || !isset($institution[0]) || !is_scalar($institution[0])) {
+                throw $this->exception(ErrorCode::InvalidResponse);
+            }
+            $code = (string) $institution[0];
+            if (substr($code, -3) === substr($clabe, 0, 3)) {
+                $matches[] = $code;
+            }
+        }
+        if (count($matches) !== 1) {
+            throw new \InvalidArgumentException('CLABE does not resolve to a unique institution for the payment date.');
+        }
+
+        return $matches[0];
+    }
+
+    /**
      * Download the CEP and return its raw bytes.
      *
      * @throws CepException
@@ -118,7 +178,7 @@ final class CepClient
         }
     }
 
-    private function validatePayment(PaymentQuery $query, CookieJar $cookies): void
+    private function validatePayment(PaymentQuery $query, CookieJar $cookies, bool $consultation = false): string
     {
         try {
             $response = $this->http->request('POST', 'valida.do', [
@@ -130,13 +190,16 @@ final class CepClient
                     'Referer' => $this->baseUrl,
                     'X-Requested-With' => 'XMLHttpRequest',
                 ],
-                'form_params' => $query->toBanxicoPayload(),
+                'form_params' => array_replace($query->toBanxicoPayload(), [
+                    'tipoConsulta' => $consultation ? 0 : 1,
+                ]),
             ]);
         } catch (GuzzleException $e) {
             throw $this->exception(ErrorCode::HttpRequestFailed, $e);
         }
 
-        $body = $this->decode((string) $response->getBody());
+        $html = (string) $response->getBody();
+        $body = $this->decode($html);
 
         if ($body === '') {
             throw $this->exception(ErrorCode::EmptyResponse);
@@ -153,12 +216,14 @@ final class CepClient
             }
         }
 
-        if (str_contains($body, self::CEP_NOT_AVAILABLE_MARKER)) {
+        if (!$consultation && str_contains($body, self::CEP_NOT_AVAILABLE_MARKER)) {
             throw new CepNotAvailableException(
                 ErrorCode::CepNotAvailable,
                 $this->messages->get(ErrorCode::CepNotAvailable),
             );
         }
+
+        return $html;
     }
 
     private function downloadDocument(CepFormat $format, CookieJar $cookies): string
